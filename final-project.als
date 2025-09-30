@@ -1,3 +1,8 @@
+
+// ###############
+// Object Definitions
+// ###############
+
 abstract sig User {} 
 
 sig Rider extends User {} 
@@ -20,25 +25,45 @@ sig Request {
 	requestedBy: one Rider
 } 
 
-sig Presto { 
+
+// ###############
+// State
+// ###############
+
+sig Presto {
 	active: some Request,
 	matchedTo: Request -> lone OnlineDriver
-} 
+}
 
-pred invariants [p: Presto] {
+// ###############
+// Invariants
+// ###############
+
+pred prestoInvariants [p: Presto] {
 	// User can only have a single request.
 	all u : User | lone requestedBy.u
 
 	// Drivers can only match to a single request.
 	all d : OnlineDriver | lone (p.matchedTo).d
 
-	// Request origin and destination cannot be the same.
-	all r : Request | r.origin != r.destination
-
 	// Presto atom can only match drivers to active requests.
-	no p
+	//p.active + p.matchedTo = p.active
+	all r: Request | some p.matchedTo[r] implies r in p.active
 
 }
+
+pred invariants {
+	all p : Presto | prestoInvariants[p]
+	
+	// Request origin and destination cannot be the same.
+	all r : Request | r.origin != r.destination
+}
+
+// ###############
+// Operations
+// ###############
+
+// ### Request ###
 
 pred request[s1, s2: Presto, r: Rider, req: Request] {
 	// Pre-conditions:
@@ -57,14 +82,115 @@ pred request[s1, s2: Presto, r: Rider, req: Request] {
 	s2.matchedTo = s1.matchedTo
 }
 
-run {
+// ### Cancel ###
+
+pred cancel[s1, s2: Presto, r: Rider] {
+	// Pre-conditions:
+	// Rider must have a request.
+	some requestedBy.r
+
+	// Rider's request must be in active requests
+	 requestedBy.r in s1.active
+
+	// Request must not be matched
+	no s1.matchedTo[requestedBy.r]
+
+	// Post-condition:
+	s2.active = s1.active - requestedBy.r
+	s2.matchedTo = s1.matchedTo
+}
+
+
+// ###############
+// Show
+// ###############
+
+pred showConditions {
+	all r : Request | some active.r
+	invariants
+	
+}
+
+// ### Request ###
+
+pred showRequest {
 	some s1, s2: Presto, r: Rider, req: Request |
     		request[s1, s2, r, req]
-} for 4 but exactly 2 Presto
+	// side conditions
+	and showConditions	
+}
+
+// ### Cancel ###
+
+pred showCancel {
+	some s1, s2: Presto, r: Rider |
+    		cancel[s1, s2, r]
+	// side conditions
+	and showConditions	
+}
+
+// ###############
+// Asserts
+// ###############
 
 
-//run {
-//	all r: Request | some active.r and 
-	//all r : Request | #(r.(Presto.matchedTo)) = 1
-//	all p: Presto | invariants[p] 
-//} for 4 but exactly 1 Presto, exactly 2 Request, exactly 2 OnlineDriver
+// ### Request ###
+
+pred RequestPreservesInvariants {
+	all s1, s2: Presto, r: Rider, req: Request |
+		invariants and request[s1, s2, r, req] implies invariants
+
+}
+
+pred RequestIncrementsActiveAndRetainsMatch{
+	all s1, s2: Presto, r: Rider, req: Request |
+		invariants and request[s1, s2, r, req] implies 
+		#(s1.active) <  #(s2.active) and
+		s1.matchedTo = s2.matchedTo
+}
+
+
+assert RequestAsserts {
+	RequestPreservesInvariants and
+	RequestIncrementsActiveAndRetainsMatch
+}
+
+// ### Cancel ###
+
+pred CancelPreservesInvariants {
+	all s1, s2: Presto, r: Rider |
+		invariants and cancel[s1, s2, r] implies invariants
+}
+
+pred CancelDecrementsActiveAndRetainsMatch{
+	all s1, s2: Presto, r: Rider |
+		invariants and cancel[s1, s2, r] implies 
+		#(s1.active) >  #(s2.active) and
+		s1.matchedTo = s2.matchedTo
+}
+
+assert CancelAsserts {
+	CancelPreservesInvariants and
+	CancelDecrementsActiveAndRetainsMatch
+}
+
+// ### Operation Interaction ###
+
+
+// ###############
+// Commands
+// ###############
+
+// ### Assert ###
+
+//run {showRequest} for 4 but exactly 2 Presto
+//run {showCancel} for 4 but exactly 2 Presto
+
+
+// ### Check ###
+
+//check RequestAsserts for 5 but exactly 3 Presto
+check CancelAsserts for 5 but exactly 3 Presto
+
+
+
