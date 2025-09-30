@@ -23,7 +23,7 @@ sig Request {
 	origin: one Location,
 	destination: one Location, 
 	requestedBy: one Rider
-} 
+}
 
 
 // ###############
@@ -34,6 +34,7 @@ sig Presto {
 	active: some Request,
 	matchedTo: Request -> lone OnlineDriver
 }
+
 
 // ###############
 // Invariants
@@ -100,6 +101,50 @@ pred cancel[s1, s2: Presto, r: Rider] {
 	s2.matchedTo = s1.matchedTo
 }
 
+// ### Match ###
+
+pred match[s1, s2: Presto, r: Rider, d: Driver] {
+	// Pre-conditions:
+	// Rider must have a request.
+	some requestedBy.r
+
+	// Rider's request must be in active requests
+	 requestedBy.r in s1.active
+
+	// Request must not be matched
+	no s1.matchedTo[requestedBy.r]
+
+	// Driver must be online
+	d in OnlineDriver
+
+	// Driver must not be matched
+	no s1.matchedTo.d
+
+	// Post-condition:
+	s2.active = s1.active
+	s2.matchedTo = s1.matchedTo + requestedBy.r -> d
+}
+
+// ### Complete ###
+
+pred complete[s1, s2: Presto, r: Rider, d: Driver] {
+	// Pre-conditions:
+	// Rider must have a request.
+	some requestedBy.r
+
+	// Rider's request must be in active requests
+	 requestedBy.r in s1.active
+
+	// Rider and Driver must be Matched
+	d = s1.matchedTo[requestedBy.r]
+	requestedBy.r -> d in s1.matchedTo
+
+	// Post-condition:
+	s2.active = s1.active - requestedBy.r
+	
+	s2.matchedTo = s1.matchedTo - requestedBy.r -> d
+}
+
 
 // ###############
 // Show
@@ -129,6 +174,24 @@ pred showCancel {
 	and showConditions	
 }
 
+// ### Match ###
+
+pred showMatch {
+	some s1, s2: Presto, r: Rider, d: Driver |
+    		match[s1, s2, r, d]
+	// side conditions
+	and showConditions	
+}
+
+// ### Complete ###
+
+pred showComplete {
+	some s1, s2: Presto, r: Rider, d: Driver |
+    		complete[s1, s2, r, d]
+	// side conditions
+	and showConditions	
+}
+
 // ###############
 // Asserts
 // ###############
@@ -142,7 +205,7 @@ pred RequestPreservesInvariants {
 
 }
 
-pred RequestIncrementsActiveAndRetainsMatch{
+pred RequestIncreasesActiveAndRetainsMatch{
 	all s1, s2: Presto, r: Rider, req: Request |
 		invariants and request[s1, s2, r, req] implies 
 		#(s1.active) <  #(s2.active) and
@@ -152,7 +215,7 @@ pred RequestIncrementsActiveAndRetainsMatch{
 
 assert RequestAsserts {
 	RequestPreservesInvariants and
-	RequestIncrementsActiveAndRetainsMatch
+	RequestIncreasesActiveAndRetainsMatch
 }
 
 // ### Cancel ###
@@ -162,7 +225,7 @@ pred CancelPreservesInvariants {
 		invariants and cancel[s1, s2, r] implies invariants
 }
 
-pred CancelDecrementsActiveAndRetainsMatch{
+pred CancelDecreasesActiveAndRetainsMatch{
 	all s1, s2: Presto, r: Rider |
 		invariants and cancel[s1, s2, r] implies 
 		#(s1.active) >  #(s2.active) and
@@ -171,10 +234,57 @@ pred CancelDecrementsActiveAndRetainsMatch{
 
 assert CancelAsserts {
 	CancelPreservesInvariants and
-	CancelDecrementsActiveAndRetainsMatch
+	CancelDecreasesActiveAndRetainsMatch
 }
 
+// ### Match ###
+
+pred MatchPreservesInvariants {
+	all s1, s2: Presto, r: Rider, d:Driver |
+		invariants and match[s1, s2, r, d] implies invariants
+}
+
+pred MatchRetainsActiveAndIncreasesMatch{
+	all s1, s2: Presto, r: Rider, d:Driver |
+		invariants and match[s1, s2, r,d] implies 
+		#(s1.matchedTo) < #(s2.matchedTo) and
+		s1.active = s2.active
+}
+
+assert MatchAsserts {
+	MatchPreservesInvariants and
+	MatchRetainsActiveAndIncreasesMatch
+}
+
+// ### Complete ###
+
+pred CompletePreservesInvariants {
+	all s1, s2: Presto, r: Rider, d:Driver |
+		invariants and complete[s1, s2, r, d] implies invariants
+}
+
+pred CompleteDecreasesActiveAndDecreasesMatch{
+	all s1, s2: Presto, r: Rider, d:Driver |
+		invariants and complete[s1, s2, r,d] implies 
+		#(s1.matchedTo) > #(s2.matchedTo) and
+		#(s1.active - requestedBy.r) = #(s2.active)
+}
+
+assert CompleteAsserts {
+	CompletePreservesInvariants and
+	CompleteDecreasesActiveAndDecreasesMatch
+}
+
+
 // ### Operation Interaction ###
+
+assert RequestThenCancelUndo {
+	all s1, s2,s3: Presto, r: Rider, req: Request |
+		request[s1, s2, r, req] and
+		cancel[s2, s3, r] implies
+		s1.matchedTo = s3.matchedTo and
+		s1.active = s3.active
+}
 
 
 // ###############
@@ -185,12 +295,20 @@ assert CancelAsserts {
 
 //run {showRequest} for 4 but exactly 2 Presto
 //run {showCancel} for 4 but exactly 2 Presto
+//run {showMatch} for 5 but exactly 2 Presto
+//run {showComplete} for 5 but exactly 2 Presto
 
 
 // ### Check ###
 
-//check RequestAsserts for 5 but exactly 3 Presto
-check CancelAsserts for 5 but exactly 3 Presto
+// ### Operations ###
+//check RequestAsserts for 5 but exactly 2 Presto
+//check CancelAsserts for 5 but exactly 2 Presto
+//check MatchAsserts for 5 but exactly 2 Presto
+//check CompleteAsserts for 5 but exactly 2 Presto
+
+// ### Interactions ###
+//check RequestThenCancelUndo for 5 but exactly 3 Presto
 
 
 
