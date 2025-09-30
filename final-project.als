@@ -151,7 +151,7 @@ pred complete[s1, s2: Presto, r: Rider, d: Driver] {
 // ###############
 
 pred showConditions {
-	all r : Request | some active.r
+	//all r : Request | some active.r
 	invariants
 	
 }
@@ -197,6 +197,7 @@ pred showComplete {
 // ###############
 
 
+// ###############
 // ### Request ###
 
 pred RequestPreservesInvariants {
@@ -212,12 +213,12 @@ pred RequestIncreasesActiveAndRetainsMatch{
 		s1.matchedTo = s2.matchedTo
 }
 
-
 assert RequestAsserts {
 	RequestPreservesInvariants and
-	RequestIncreasesActiveAndRetainsMatch
+	RequestIncreasesActiveAndRetainsMatch 
 }
 
+// ###############
 // ### Cancel ###
 
 pred CancelPreservesInvariants {
@@ -237,6 +238,7 @@ assert CancelAsserts {
 	CancelDecreasesActiveAndRetainsMatch
 }
 
+// ###############
 // ### Match ###
 
 pred MatchPreservesInvariants {
@@ -256,6 +258,7 @@ assert MatchAsserts {
 	MatchRetainsActiveAndIncreasesMatch
 }
 
+// ###############
 // ### Complete ###
 
 pred CompletePreservesInvariants {
@@ -275,7 +278,7 @@ assert CompleteAsserts {
 	CompleteDecreasesActiveAndDecreasesMatch
 }
 
-
+// ###############
 // ### Operation Interaction ###
 
 assert RequestThenCancelUndo {
@@ -286,6 +289,24 @@ assert RequestThenCancelUndo {
 		s1.active = s3.active
 }
 
+assert RequestThenMatchThenCompleteIsUndo {
+	all s1, s2,s3,s4: Presto, r: Rider, req: Request,d:Driver |
+		invariants and
+		request[s1, s2, r, req] and
+		match[s2, s3, r,d] and
+		complete[s3,s4,r,d] implies
+		s1.matchedTo = s4.matchedTo and
+		s1.active = s4.active
+}
+
+assert MatchThenCompleteImpliesCancel {
+	all s1, s2,s3: Presto, r: Rider,d:Driver |
+		invariants and
+		match[s1, s2, r,d] and
+		complete[s2,s3,r,d] implies
+		cancel[s1,s3,r]
+}
+
 
 // ###############
 // Commands
@@ -293,7 +314,7 @@ assert RequestThenCancelUndo {
 
 // ### Assert ###
 
-//run {showRequest} for 4 but exactly 2 Presto
+run {showRequest} for 4 but exactly 2 Presto
 //run {showCancel} for 4 but exactly 2 Presto
 //run {showMatch} for 5 but exactly 2 Presto
 //run {showComplete} for 5 but exactly 2 Presto
@@ -309,6 +330,9 @@ assert RequestThenCancelUndo {
 
 // ### Interactions ###
 //check RequestThenCancelUndo for 5 but exactly 3 Presto
+//check RequestThenMatchThenCompleteIsUndo for 4 but exactly 4 Presto
+//check MatchThenCompleteImpliesCancel for 3 but exactly 3 Presto
+
 
 
 
